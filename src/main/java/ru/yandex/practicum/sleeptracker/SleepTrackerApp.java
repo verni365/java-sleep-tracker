@@ -196,36 +196,64 @@ public class SleepTrackerApp {
 
     static class ChronotypeAnalyzer implements SleepAnalyzer {
         // Простая версия, которая проходила тесты раньше
-        private static final LocalTime OWL_S = LocalTime.of(23,0);
-        private static final LocalTime OWL_W = LocalTime.of(9,0);
-        private static final LocalTime LARK_S = LocalTime.of(22,0);
-        private static final LocalTime LARK_W = LocalTime.of(7,0);
+        private static final LocalTime OWL_S = LocalTime.of(23, 0);
+        private static final LocalTime OWL_W = LocalTime.of(9, 0);
+        private static final LocalTime LARK_S = LocalTime.of(22, 0);
+        private static final LocalTime LARK_W = LocalTime.of(7, 0);
 
-        enum Chronotype { OWL("Сова"), LARK("Жаворонок"), PIGEON("Голубь");
-            final String n; Chronotype(String n){this.n=n;} String getDisplayName(){return n;}
+        enum Chronotype {
+            OWL("Сова"),
+            LARK("Жаворонок"),
+            PIGEON("Голубь");
+
+            final String n;
+
+            Chronotype(String n) {
+                this.n = n;
+            }
+
+            String getDisplayName() {
+                return n;
+            }
         }
 
         @Override
         public SleepAnalysisResult analyze(List<SleepingSession> sessions) {
-            if (sessions.isEmpty()) return new SleepAnalysisResult("Хронотип пользователя", "Голубь");
-
-            // Берём только ночные сессии
-            long owl = 0, lark = 0;
-            for (SleepingSession s : sessions) {
-                if (!isNightSession(s)) continue;
-                LocalTime sleep = s.getStartDateTime().toLocalTime();
-                LocalTime wake = s.getEndDateTime().toLocalTime();
-                if (sleep.isAfter(OWL_S) && wake.isAfter(OWL_W)) owl++;
-                else if (sleep.isBefore(LARK_S) && wake.isBefore(LARK_W)) lark++;
+            if (sessions.isEmpty()) {
+                return new SleepAnalysisResult("Хронотип пользователя", "Голубь");
             }
 
-            if (owl > lark) return new SleepAnalysisResult("Хронотип пользователя", "Сова");
-            if (lark > owl) return new SleepAnalysisResult("Хронотип пользователя", "Жаворонок");
+            long owl = 0;
+            long lark = 0;
+
+            for (SleepingSession s : sessions) {
+                if (!isNightSession(s)) {
+                    continue;
+                }
+
+                LocalTime sleep = s.getStartDateTime().toLocalTime();
+                LocalTime wake = s.getEndDateTime().toLocalTime();
+
+                if (sleep.isAfter(OWL_S) && wake.isAfter(OWL_W)) {
+                    owl++;
+                } else if (sleep.isBefore(LARK_S) && wake.isBefore(LARK_W)) {
+                    lark++;
+                }
+            }
+
+            if (owl > lark) {
+                return new SleepAnalysisResult("Хронотип пользователя", "Сова");
+            }
+
+            if (lark > owl) {
+                return new SleepAnalysisResult("Хронотип пользователя", "Жаворонок");
+            }
+
             return new SleepAnalysisResult("Хронотип пользователя", "Голубь");
         }
 
         private boolean isNightSession(SleepingSession s) {
-            return s.getStartDateTime().toLocalTime().isAfter(LocalTime.of(12,0));
+            return s.getStartDateTime().toLocalTime().isAfter(LocalTime.of(12, 0));
         }
     }
 
