@@ -132,9 +132,10 @@ public class SleepTrackerApp {
     }
 
     static class SleeplessNightsAnalyzer implements SleepAnalyzer {
-        private static final LocalTime NOON = LocalTime.of(12, 0);
+
         private static final LocalTime NIGHT_START = LocalTime.of(0, 0);
         private static final LocalTime NIGHT_END = LocalTime.of(6, 0);
+        private static final LocalTime NOON = LocalTime.of(12, 0);
 
         @Override
         public SleepAnalysisResult analyze(List<SleepingSession> sessions) {
@@ -142,55 +143,48 @@ public class SleepTrackerApp {
                 return new SleepAnalysisResult("Количество бессонных ночей", 0L);
             }
 
-            // Собираем все ночи, которые реально покрыты ночным сном
-            Set<LocalDate> coveredNights = sessions.stream()
-                    .flatMap(session -> getCoveredNights(session).stream())
-                    .collect(Collectors.toSet());
+            sessions = sessions.stream()
+                    .sorted(Comparator.comparing(SleepingSession::getStartDateTime))
+                    .toList();
 
-            // Диапазон ночей определяем только по ночным сессиям
-            List<LocalDate> nightDates = sessions.stream()
-                    .filter(this::isNightSession)
-                    .map(s -> getNightDate(s.getStartDateTime()))
-                    .sorted()
-                    .collect(Collectors.toList());
-
-            if (nightDates.isEmpty()) {
-                return new SleepAnalysisResult("Количество бессонных ночей", 0L);
-            }
-
-            LocalDate firstNight = nightDates.get(0);
-            LocalDate lastNight = nightDates.get(nightDates.size() - 1);
+            LocalDate firstNight = getFirstNight(sessions.get(0));
+            LocalDate lastNight = sessions.get(sessions.size() - 1)
+                    .getEndDateTime()
+                    .toLocalDate();
 
             long totalNights = ChronoUnit.DAYS.between(firstNight, lastNight) + 1;
-            long sleepless = totalNights - coveredNights.size();
 
-            return new SleepAnalysisResult("Количество бессонных ночей", Math.max(0, sleepless));
+            long nightsWithSleep = sessions.stream()
+                    .filter(this::isNightCovered)
+                    .map(this::getCoveredNight)
+                    .distinct()
+                    .count();
+
+            return new SleepAnalysisResult(
+                    "Количество бессонных ночей",
+                    Math.max(0, totalNights - nightsWithSleep)
+            );
         }
 
-        private boolean isNightSession(SleepingSession session) {
-            return session.getStartDateTime().toLocalTime().isAfter(NOON);
+        private LocalDate getFirstNight(SleepingSession session) {
+            LocalDateTime start = session.getStartDateTime();
+            return start.toLocalTime().isAfter(NOON)
+                    ? start.toLocalDate().plusDays(1)
+                    : start.toLocalDate();
         }
 
-        private LocalDate getNightDate(LocalDateTime dt) {
-            return dt.toLocalTime().isAfter(NOON) ? dt.toLocalDate().plusDays(1) : dt.toLocalDate();
+        private boolean isNightCovered(SleepingSession s) {
+            LocalTime start = s.getStartDateTime().toLocalTime();
+            LocalTime end = s.getEndDateTime().toLocalTime();
+
+            return start.isBefore(NIGHT_END) ||
+                    end.isAfter(NIGHT_START) && start.isAfter(NOON);
         }
 
-        private List<LocalDate> getCoveredNights(SleepingSession session) {
-            List<LocalDate> nights = new ArrayList<>();
-            LocalDate current = session.getStartDateTime().toLocalDate();
-            LocalDateTime end = session.getEndDateTime();
-
-            while (!current.isAfter(end.toLocalDate().plusDays(1))) {
-                LocalDateTime nightBegin = current.atTime(NIGHT_START);
-                LocalDateTime nightEnd = current.atTime(NIGHT_END);
-
-                if (session.getStartDateTime().isBefore(nightEnd) &&
-                        session.getEndDateTime().isAfter(nightBegin)) {
-                    nights.add(current);
-                }
-                current = current.plusDays(1);
-            }
-            return nights;
+        private LocalDate getCoveredNight(SleepingSession s) {
+            return s.getStartDateTime().toLocalTime().isAfter(NOON)
+                    ? s.getStartDateTime().toLocalDate().plusDays(1)
+                    : s.getStartDateTime().toLocalDate();
         }
     }
 
