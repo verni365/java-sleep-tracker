@@ -1,3 +1,8 @@
+package ru.yandex.practicum.sleeptracker;
+
+import java.time.Duration;
+import java.time.LocalDateTime;
+
 public class SleepingSession {
     private final LocalDateTime start;
     private final LocalDateTime end;
@@ -27,7 +32,7 @@ public class SleepingSession {
         return quality;
     }
 
-public long getDurationMinutes() {
-        return Duration.between(start, end).toMinutes();  // теперь безопасно благодаря проверке в конструкторе
+    public long getDurationMinutes() {
+        return Duration.between(start, end).toMinutes();
     }
 }
