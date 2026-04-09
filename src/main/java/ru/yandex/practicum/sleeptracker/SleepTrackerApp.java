@@ -133,9 +133,9 @@ public class SleepTrackerApp {
 
     static class SleeplessNightsAnalyzer implements SleepAnalyzer {
 
-        private static final LocalTime NIGHT_START = LocalTime.of(0, 0);
-        private static final LocalTime NIGHT_END = LocalTime.of(6, 0);
         private static final LocalTime NOON = LocalTime.of(12, 0);
+        private static final LocalTime NIGHT_START = LocalTime.MIDNIGHT;
+        private static final LocalTime NIGHT_END = LocalTime.of(6, 0);
 
         @Override
         public SleepAnalysisResult analyze(List<SleepingSession> sessions) {
@@ -143,48 +143,37 @@ public class SleepTrackerApp {
                 return new SleepAnalysisResult("Количество бессонных ночей", 0L);
             }
 
-            sessions = sessions.stream()
+            List<SleepingSession> sorted = sessions.stream()
                     .sorted(Comparator.comparing(SleepingSession::getStartDateTime))
                     .toList();
 
-            LocalDate firstNight = getFirstNight(sessions.get(0));
-            LocalDate lastNight = sessions.get(sessions.size() - 1)
+            LocalDate firstNight = getFirstNight(sorted.get(0));
+            LocalDate lastNight = sorted.get(sorted.size() - 1)
                     .getEndDateTime()
                     .toLocalDate();
 
-            long totalNights = ChronoUnit.DAYS.between(firstNight, lastNight) + 1;
-
-            long nightsWithSleep = sessions.stream()
-                    .filter(this::isNightCovered)
-                    .map(this::getCoveredNight)
-                    .distinct()
+            long sleepless = firstNight.datesUntil(lastNight.plusDays(1))
+                    .filter(night -> !hasSleepThisNight(night, sorted))
                     .count();
 
-            return new SleepAnalysisResult(
-                    "Количество бессонных ночей",
-                    Math.max(0, totalNights - nightsWithSleep)
-            );
+            return new SleepAnalysisResult("Количество бессонных ночей", sleepless);
         }
 
-        private LocalDate getFirstNight(SleepingSession session) {
-            LocalDateTime start = session.getStartDateTime();
+        private LocalDate getFirstNight(SleepingSession first) {
+            LocalDateTime start = first.getStartDateTime();
             return start.toLocalTime().isAfter(NOON)
                     ? start.toLocalDate().plusDays(1)
                     : start.toLocalDate();
         }
 
-        private boolean isNightCovered(SleepingSession s) {
-            LocalTime start = s.getStartDateTime().toLocalTime();
-            LocalTime end = s.getEndDateTime().toLocalTime();
+        private boolean hasSleepThisNight(LocalDate night, List<SleepingSession> sessions) {
+            LocalDateTime nightStart = night.atTime(NIGHT_START);
+            LocalDateTime nightEnd = night.atTime(NIGHT_END);
 
-            return start.isBefore(NIGHT_END) ||
-                    end.isAfter(NIGHT_START) && start.isAfter(NOON);
-        }
-
-        private LocalDate getCoveredNight(SleepingSession s) {
-            return s.getStartDateTime().toLocalTime().isAfter(NOON)
-                    ? s.getStartDateTime().toLocalDate().plusDays(1)
-                    : s.getStartDateTime().toLocalDate();
+            return sessions.stream().anyMatch(s ->
+                    s.getStartDateTime().isBefore(nightEnd)
+                            && s.getEndDateTime().isAfter(nightStart)
+            );
         }
     }
 
