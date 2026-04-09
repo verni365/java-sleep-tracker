@@ -169,10 +169,8 @@ public class SleepTrackerApp {
             SleepingSession first = sessions.get(0);
             SleepingSession last = sessions.get(sessions.size() - 1);
 
-            LocalDate firstNight = first.getStartDateTime().getHour() >= 12
-                    ? first.getStartDateTime().toLocalDate().plusDays(1)
-                    : first.getStartDateTime().toLocalDate();
-            LocalDate lastNight = last.getEndDateTime().toLocalDate();
+            LocalDate firstNight = determineFirstNight(first);
+            LocalDate lastNight = determineLastNight(last);
 
             long totalNights = ChronoUnit.DAYS.between(firstNight, lastNight) + 1;
 
@@ -184,27 +182,51 @@ public class SleepTrackerApp {
             return new SleepAnalysisResult("Количество бессонных ночей", sleepless);
         }
 
+        private LocalDate determineFirstNight(SleepingSession firstSession) {
+            LocalDateTime start = firstSession.getStartDateTime();
+            LocalTime startTime = start.toLocalTime();
+            LocalDate startDate = start.toLocalDate();
+            if (startTime.isAfter(NOON)) {
+                return startDate.plusDays(1);
+            } else {
+                return startDate;
+            }
+        }
+
+        private LocalDate determineLastNight(SleepingSession lastSession) {
+            LocalDateTime end = lastSession.getEndDateTime();
+            LocalTime endTime = end.toLocalTime();
+            LocalDate endDate = end.toLocalDate();
+            if (endTime.isBefore(NOON)) {
+                return endDate.minusDays(1);
+            } else {
+                return endDate;
+            }
+        }
+
         private List<LocalDate> getNightsCoveredBySession(SleepingSession session) {
             LocalDateTime start = session.getStartDateTime();
             LocalDateTime end = session.getEndDateTime();
 
-            LocalDate firstPotentialNight = start.toLocalDate();
-            if (start.toLocalTime().isAfter(NIGHT_END)) {
-                firstPotentialNight = firstPotentialNight.plusDays(1);
+            LocalDate startNight = start.toLocalDate();
+            LocalTime startTime = start.toLocalTime();
+            if (startTime.isAfter(NIGHT_END)) {
+                startNight = startNight.plusDays(1);
             }
 
-            LocalDate lastPotentialNight = end.toLocalDate();
-            if (end.toLocalTime().isBefore(NIGHT_START)) {
-                lastPotentialNight = lastPotentialNight.minusDays(1);
+            LocalDate endNight = end.toLocalDate();
+            LocalTime endTime = end.toLocalTime();
+            if (endTime.isBefore(NIGHT_START)) {
+                endNight = endNight.minusDays(1);
             }
 
-            if (lastPotentialNight.isBefore(firstPotentialNight)) {
+            if (endNight.isBefore(startNight)) {
                 return List.of();
             }
 
-            long daysBetween = ChronoUnit.DAYS.between(firstPotentialNight, lastPotentialNight);
+            long daysBetween = ChronoUnit.DAYS.between(startNight, endNight);
             return LongStream.rangeClosed(0, daysBetween)
-                    .mapToObj(firstPotentialNight::plusDays)
+                    .mapToObj(startNight::plusDays)
                     .collect(Collectors.toList());
         }
     }
@@ -290,20 +312,25 @@ public class SleepTrackerApp {
             LocalDateTime start = session.getStartDateTime();
             LocalDateTime end = session.getEndDateTime();
 
-            LocalDate firstNight = start.toLocalDate();
-            if (start.toLocalTime().isAfter(NIGHT_END)) {
-                firstNight = firstNight.plusDays(1);
+            LocalDate startNight = start.toLocalDate();
+            LocalTime startTime = start.toLocalTime();
+            if (startTime.isAfter(NIGHT_END)) {
+                startNight = startNight.plusDays(1);
             }
-            LocalDate lastNight = end.toLocalDate();
-            if (end.toLocalTime().isBefore(NIGHT_START)) {
-                lastNight = lastNight.minusDays(1);
+
+            LocalDate endNight = end.toLocalDate();
+            LocalTime endTime = end.toLocalTime();
+            if (endTime.isBefore(NIGHT_START)) {
+                endNight = endNight.minusDays(1);
             }
-            if (lastNight.isBefore(firstNight)) {
+
+            if (endNight.isBefore(startNight)) {
                 return List.of();
             }
-            long days = ChronoUnit.DAYS.between(firstNight, lastNight);
-            return LongStream.rangeClosed(0, days)
-                    .mapToObj(firstNight::plusDays)
+
+            long daysBetween = ChronoUnit.DAYS.between(startNight, endNight);
+            return LongStream.rangeClosed(0, daysBetween)
+                    .mapToObj(startNight::plusDays)
                     .collect(Collectors.toList());
         }
     }
