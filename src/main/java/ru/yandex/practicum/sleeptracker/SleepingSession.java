@@ -15,14 +15,17 @@ public class SleepingSession {
     }
 
     public LocalDateTime getStartDateTime() {
-        return start; 
+        return start;
     }
+
     public LocalDateTime getEndDateTime() {
-        return end; 
+        return end;
     }
-    public SleepQuality getQuality() { 
+
+    public SleepQuality getQuality() {
         return quality;
-     }
+    }
+
     public long getDurationMinutes() {
         return Duration.between(start, end).toMinutes();
     }
