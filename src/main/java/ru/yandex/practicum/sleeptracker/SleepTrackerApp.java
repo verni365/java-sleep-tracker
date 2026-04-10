@@ -3,272 +3,51 @@ package ru.yandex.practicum.sleeptracker;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class SleepTrackerApp {
-
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yy HH:mm");
-
-    private final List<SleepAnalyzer> analyzers;
-
-    public SleepTrackerApp() {
-        this.analyzers = List.of(
-                new TotalSessionsAnalyzer(),
-                new MinDurationAnalyzer(),
-                new MaxDurationAnalyzer(),
-                new AverageDurationAnalyzer(),
-                new BadQualitySessionsAnalyzer(),
-                new SleeplessNightsAnalyzer(),
-                new ChronotypeAnalyzer(),
-                new QualityDistributionAnalyzer(),
-                new DaytimeSessionsAnalyzer(),
-                new ShortSleepAnalyzer()
-        );
-    }
-
-    public List<SleepAnalysisResult> runAnalysis(List<SleepingSession> sessions) {
-        return analyzers.stream()
-                .map(analyzer -> analyzer.analyze(sessions))
-                .collect(Collectors.toList());
-    }
+    private static final List<SleepAnalysisFunction> ANALYSIS_FUNCTIONS = List.of(
+            new TotalSessionsFunction(),
+            new MinDurationFunction(),
+            new MaxDurationFunction(),
+            new AvgDurationFunction(),
+            new BadQualitySessionsFunction(),
+            new SleeplessNightsFunction(),
+            new ChronotypeFunction()
+    );
 
     public static void main(String[] args) {
         if (args.length < 1) {
-            System.err.println("Ошибка: не указан путь к файлу с логом сна");
-            System.err.println("Использование: java SleepTrackerApp <путь_к_файлу>");
-            System.exit(1);
+            System.err.println("Укажите путь к файлу с логом сна.");
+            return;
         }
-
+        String filePath = args[0];
         try {
-            List<SleepingSession> sessions = loadSessionsFromFile(args[0]);
-            if (sessions.isEmpty()) {
-                System.out.println("Файл не содержит данных о сессиях сна");
-                return;
-            }
-
-            List<SleepAnalysisResult> results = new SleepTrackerApp().runAnalysis(sessions);
-
-            System.out.println("Результаты анализа сна");
-            System.out.println("Всего обработано сессий: " + sessions.size());
-            System.out.println();
-            results.forEach(System.out::println);
+            List<SleepingSession> sessions = loadSessions(filePath);
+            ANALYSIS_FUNCTIONS.stream()
+                    .map(func -> func.analyze(sessions))
+                    .forEach(System.out::println);
+        } catch (IOException e) {
+            System.err.println("Ошибка чтения файла: " + e.getMessage());
         } catch (Exception e) {
             System.err.println("Ошибка: " + e.getMessage());
-            System.exit(1);
         }
     }
 
-    private static List<SleepingSession> loadSessionsFromFile(String filePath) throws IOException {
-        try (Stream<String> lines = Files.lines(Path.of(filePath))) {
-            return lines.filter(line -> !line.trim().isEmpty())
-                    .map(SleepTrackerApp::parseSession)
-                    .collect(Collectors.toList());
-        }
-    }
-
-    private static SleepingSession parseSession(String line) {
-        String[] parts = line.split(";");
-        LocalDateTime start = LocalDateTime.parse(parts[0].trim(), DATE_FORMATTER);
-        LocalDateTime end = LocalDateTime.parse(parts[1].trim(), DATE_FORMATTER);
-        SleepQuality quality = SleepQuality.valueOf(parts[2].trim());
-        return new SleepingSession(start, end, quality);
-    }
-
-    // ===================== АНАЛИЗАТОРЫ =====================
-
-    static class TotalSessionsAnalyzer implements SleepAnalyzer {
-        @Override
-        public SleepAnalysisResult analyze(List<SleepingSession> sessions) {
-            return new SleepAnalysisResult("Общее количество сессий сна", (long) sessions.size());
-        }
-    }
-
-    static class MinDurationAnalyzer implements SleepAnalyzer {
-        @Override
-        public SleepAnalysisResult analyze(List<SleepingSession> sessions) {
-            long min = sessions.stream()
-                    .mapToLong(SleepingSession::getDurationMinutes)
-                    .filter(m -> m >= 50)
-                    .min().orElse(0);
-            return new SleepAnalysisResult("Минимальная продолжительность сессии сна", formatDuration(min));
-        }
-    }
-
-    static class MaxDurationAnalyzer implements SleepAnalyzer {
-        @Override
-        public SleepAnalysisResult analyze(List<SleepingSession> sessions) {
-            long max = sessions.stream()
-                    .mapToLong(SleepingSession::getDurationMinutes)
-                    .filter(m -> m <= 495)
-                    .max().orElse(0);
-            return new SleepAnalysisResult("Максимальная продолжительность сессии сна", formatDuration(max));
-        }
-    }
-
-    static class AverageDurationAnalyzer implements SleepAnalyzer {
-        @Override
-        public SleepAnalysisResult analyze(List<SleepingSession> sessions) {
-            double avg = sessions.stream()
-                    .mapToLong(SleepingSession::getDurationMinutes)
-                    .filter(m -> m >= 50 && m <= 495)
-                    .average().orElse(0);
-            return new SleepAnalysisResult("Средняя продолжительность сна", formatDuration(Math.round(avg)));
-        }
-    }
-
-    static class BadQualitySessionsAnalyzer implements SleepAnalyzer {
-        @Override
-        public SleepAnalysisResult analyze(List<SleepingSession> sessions) {
-            long count = sessions.stream().filter(s -> s.getQuality() == SleepQuality.BAD).count();
-            return new SleepAnalysisResult("Количество сессий с плохим качеством сна (BAD)", count);
-        }
-    }
-
-  static class SleeplessNightsAnalyzer implements SleepAnalyzer {
-
-    private static final LocalTime NOON = LocalTime.of(12, 0);
-    private static final LocalTime NIGHT_START = LocalTime.MIDNIGHT;
-    private static final LocalTime NIGHT_END = LocalTime.of(6, 0);
-
-    @Override
-    public SleepAnalysisResult analyze(List<SleepingSession> sessions) {
-        if (sessions.isEmpty()) {
-            return new SleepAnalysisResult("Количество бессонных ночей", 0L);
-        }
-
-        List<SleepingSession> sorted = sessions.stream()
-                .sorted(Comparator.comparing(SleepingSession::getStartDateTime))
-                .toList();
-
-        LocalDate firstNight = getFirstNight(sorted.get(0));
-        LocalDate lastNight = sorted.get(sorted.size() - 1)
-                .getEndDateTime()
-                .toLocalDate();
-
-        long sleepless = firstNight.datesUntil(lastNight.plusDays(1))
-                .filter(night -> !hasSleepThisNight(night, sorted))
-                .count();
-
-        return new SleepAnalysisResult("Количество бессонных ночей", sleepless);
-    }
-
-    private LocalDate getFirstNight(SleepingSession first) {
-        LocalDateTime start = first.getStartDateTime();
-        return start.toLocalTime().isAfter(NOON)
-                ? start.toLocalDate().plusDays(1)
-                : start.toLocalDate();
-    }
-
-    private boolean hasSleepThisNight(LocalDate night, List<SleepingSession> sessions) {
-        LocalDateTime nightStart = night.atTime(NIGHT_START);
-        LocalDateTime nightEnd = night.atTime(NIGHT_END);
-
-        return sessions.stream().anyMatch(s ->
-                s.getStartDateTime().isBefore(nightEnd)
-                        && s.getEndDateTime().isAfter(nightStart)
-        );
-    }
-}
-
-    static class ChronotypeAnalyzer implements SleepAnalyzer {
-        // Простая версия, которая проходила тесты раньше
-        private static final LocalTime OWL_S = LocalTime.of(23, 0);
-        private static final LocalTime OWL_W = LocalTime.of(9, 0);
-        private static final LocalTime LARK_S = LocalTime.of(22, 0);
-        private static final LocalTime LARK_W = LocalTime.of(7, 0);
-
-        enum Chronotype {
-            OWL("Сова"),
-            LARK("Жаворонок"),
-            PIGEON("Голубь");
-
-            final String n;
-
-            Chronotype(String n) {
-                this.n = n;
-            }
-
-            String getDisplayName() {
-                return n;
-            }
-        }
-
-        @Override
-        public SleepAnalysisResult analyze(List<SleepingSession> sessions) {
-            if (sessions.isEmpty()) {
-                return new SleepAnalysisResult("Хронотип пользователя", "Голубь");
-            }
-
-            long owl = 0;
-            long lark = 0;
-
-            for (SleepingSession s : sessions) {
-                if (!isNightSession(s)) {
-                    continue;
-                }
-
-                LocalTime sleep = s.getStartDateTime().toLocalTime();
-                LocalTime wake = s.getEndDateTime().toLocalTime();
-
-                if (sleep.isAfter(OWL_S) && wake.isAfter(OWL_W)) {
-                    owl++;
-                } else if (sleep.isBefore(LARK_S) && wake.isBefore(LARK_W)) {
-                    lark++;
-                }
-            }
-
-            if (owl > lark) {
-                return new SleepAnalysisResult("Хронотип пользователя", "Сова");
-            }
-
-            if (lark > owl) {
-                return new SleepAnalysisResult("Хронотип пользователя", "Жаворонок");
-            }
-
-            return new SleepAnalysisResult("Хронотип пользователя", "Голубь");
-        }
-
-        private boolean isNightSession(SleepingSession s) {
-            return s.getStartDateTime().toLocalTime().isAfter(LocalTime.of(12, 0));
-        }
-    }
-
-    static class QualityDistributionAnalyzer implements SleepAnalyzer {
-        @Override
-        public SleepAnalysisResult analyze(List<SleepingSession> sessions) {
-            long g = sessions.stream().filter(s -> s.getQuality() == SleepQuality.GOOD).count();
-            long n = sessions.stream().filter(s -> s.getQuality() == SleepQuality.NORMAL).count();
-            long b = sessions.stream().filter(s -> s.getQuality() == SleepQuality.BAD).count();
-            return new SleepAnalysisResult("Распределение по качеству сна",
-                    String.format("GOOD: %d, NORMAL: %d, BAD: %d", g, n, b));
-        }
-    }
-
-    static class DaytimeSessionsAnalyzer implements SleepAnalyzer {
-        @Override
-        public SleepAnalysisResult analyze(List<SleepingSession> sessions) {
-            long count = sessions.stream()
-                    .filter(s -> s.getStartDateTime().getHour() >= 6 && s.getStartDateTime().getHour() <= 20)
-                    .count();
-            return new SleepAnalysisResult("Количество дневных сессий сна", count);
-        }
-    }
-
-    static class ShortSleepAnalyzer implements SleepAnalyzer {
-        @Override
-        public SleepAnalysisResult analyze(List<SleepingSession> sessions) {
-            long count = sessions.stream().filter(s -> s.getDurationMinutes() < 420).count();
-            return new SleepAnalysisResult("Количество сессий с недостаточным сном (<7 ч)", count);
-        }
-    }
-
-    private static String formatDuration(long minutes) {
-        return (minutes / 60) + " ч " + (minutes % 60) + " мин";
+    private static List<SleepingSession> loadSessions(String filePath) throws IOException {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd.MM.yy HH:mm");
+        return Files.lines(Path.of(filePath))
+                .map(line -> {
+                    String[] parts = line.split(";");
+                    if (parts.length != 3) throw new RuntimeException("Неверный формат: " + line);
+                    LocalDateTime start = LocalDateTime.parse(parts[0], formatter);
+                    LocalDateTime end = LocalDateTime.parse(parts[1], formatter);
+                    SleepingSession.Quality quality = SleepingSession.Quality.valueOf(parts[2]);
+                    return new SleepingSession(start, end, quality);
+                })
+                .collect(Collectors.toList());
     }
 }

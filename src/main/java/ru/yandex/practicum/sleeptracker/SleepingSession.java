@@ -1,38 +1,42 @@
 package ru.yandex.practicum.sleeptracker;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 
 public class SleepingSession {
     private final LocalDateTime start;
     private final LocalDateTime end;
-    private final SleepQuality quality;
+    private final Quality quality;
 
-    public SleepingSession(LocalDateTime start, LocalDateTime end, SleepQuality quality) {
-        if (start == null || end == null || quality == null) {
-            throw new IllegalArgumentException("Все параметры обязательны");
-        }
-        if (end.isBefore(start)) {
-            throw new IllegalArgumentException("Время пробуждения не может быть раньше времени засыпания");
-        }
+    public enum Quality {
+        GOOD, NORMAL, BAD
+    }
+
+    public SleepingSession(LocalDateTime start, LocalDateTime end, Quality quality) {
         this.start = start;
         this.end = end;
         this.quality = quality;
     }
 
-    public LocalDateTime getStartDateTime() {
+    public LocalDateTime getStart() {
         return start;
     }
 
-    public LocalDateTime getEndDateTime() {
+    public LocalDateTime getEnd() {
         return end;
     }
 
-    public SleepQuality getQuality() {
+    public Quality getQuality() {
         return quality;
     }
 
     public long getDurationMinutes() {
-        return Duration.between(start, end).toMinutes();
+        return ChronoUnit.MINUTES.between(start, end);
+    }
+
+    public boolean coversNight(LocalDateTime nightDate) {
+        LocalDateTime nightStart = nightDate.withHour(0).withMinute(0);
+        LocalDateTime nightEnd = nightDate.withHour(6).withMinute(0);
+        return start.isBefore(nightEnd) && end.isAfter(nightStart);
     }
 }
