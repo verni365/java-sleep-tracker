@@ -16,12 +16,11 @@ public class SleeplessNightsFunction implements SleepAnalysisFunction {
         LocalDateTime firstStart = sessions.stream()
                 .map(SleepingSession::getStart)
                 .min(LocalDateTime::compareTo)
-                .orElseThrow();
+                .orElseThrow(() -> new IllegalStateException("Не удалось определить первую сессию сна"));
         LocalDateTime lastEnd = sessions.stream()
                 .map(SleepingSession::getEnd)
                 .max(LocalDateTime::compareTo)
-                .orElseThrow();
-
+                .orElseThrow(() -> new IllegalStateException("Не удалось определить последнюю сессию сна"));
         LocalDate startDate = firstStart.toLocalDate();
         if (firstStart.getHour() >= 12) {
             startDate = startDate.plusDays(1);

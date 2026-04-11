@@ -17,9 +17,13 @@ public class ChronotypeFunction implements SleepAnalysisFunction {
             return new SleepAnalysisResult("Хронотип пользователя", Chronotype.PIGEON.toString());
         }
         LocalDateTime firstStart = sessions.stream()
-                .map(SleepingSession::getStart).min(LocalDateTime::compareTo).orElseThrow();
+                .map(SleepingSession::getStart)
+                .min(LocalDateTime::compareTo)
+                .orElseThrow(() -> new IllegalStateException("Не удалось определить первую сессию сна"));
         LocalDateTime lastEnd = sessions.stream()
-                .map(SleepingSession::getEnd).max(LocalDateTime::compareTo).orElseThrow();
+                .map(SleepingSession::getEnd)
+                .max(LocalDateTime::compareTo)
+                .orElseThrow(() -> new IllegalStateException("Не удалось определить последнюю сессию сна"));
         LocalDate startDate = firstStart.toLocalDate();
         LocalDate endDate = lastEnd.toLocalDate();
 
